@@ -16,29 +16,27 @@
 #define SBUS_PACKET_LENGTH 25
 #define SBUS_START_BYTE 0xF0
 #define SBUS_END_BYTE 0x00
-#define SBUS_NUM_CHANNELS 16
 
 #define SBUS_FLAGS_INDEX 23
-#define SBUS_FLAG_CH17 7
-#define SBUS_FlAG_CH18 6
-#define SBUS_FLAG_FRAME_LOST 5
 #define SBUS_FLAG_FAILSAFE 4
 
 void sbus_byte_handler(uint8_t b);
 void (*UART3RXHandler)(uint8_t) = sbus_byte_handler;
 
+uint8_t packet_buffer[SBUS_PACKET_LENGTH];
+uint8_t buffer_current;
+
 void sbus_init(void) {
-	/* Unconfirmed whether it's even or odd parity. Will have to verify. */
-	/* Two stop bits + parity check */
+	/* Two stop bits + even parity */
 	uart_enable(SBUS_UART, SBUS_BAUD, 2, 2);
+
+	/* Reset packet buffer */
+	buffer_current = 0;
 }
 
 void sbus_release(void) {
 	uart_disable(SBUS_UART);
 }
-
-uint8_t packet_buffer[SBUS_PACKET_LENGTH];
-uint8_t buffer_current = 0;
 
 /* Handle S-BUS packets */
 void sbus_handle_packet(void) {
@@ -90,12 +88,14 @@ void sbus_byte_handler(uint8_t b) {
 		buffer_current = 0;
 	} else if (buffer_current == SBUS_PACKET_LENGTH - 1 && b != SBUS_END_BYTE) {
 		buffer_current = 0;
-	} else {
+	} else { /* Data byte is okay */
 		packet_buffer[buffer_current] = b;
 		buffer_current += 1;
 	}
 
-	if (buffer_current == SBUS_PACKET_LENGTH){
+	/* If a full packet has been received, reset buffer_current and call the
+	 * packet handling function. */
+	if (buffer_current >= SBUS_PACKET_LENGTH){
 		buffer_current = 0;
 		sbus_handle_packet();
 	}
